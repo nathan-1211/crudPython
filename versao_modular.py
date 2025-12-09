@@ -1,123 +1,63 @@
 import sqlite3
+
+DB_NAME = "escola.db"
+
+
 def conectar():
-    con = sqlite3.connect("escola.db")
-    cur = con.cursor()
-    return con, cur
+    return sqlite3.connect(DB_NAME)
+
 
 def criar_tabela():
-    con, cur = conectar()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS alunos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        idade INTEGER
-    )
-    """)
-    con.commit()
-    con.close()
+    with conectar() as con:
+        cur = con.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alunos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                idade INTEGER NOT NULL
+            )
+        """)
 
-def inserir_aluno():
-    con, cur = conectar()
 
-    nome = input("Digite o nome do aluno: ").strip()
-    if nome == "":
-        print("Nome não pode ser vazio!")
-        return
-
-    try:
-        idade = int(input("Digite a idade: "))
-    except ValueError:
-        print("Idade inválida!")
-        return
-
-    try:
-        cur.execute("INSERT INTO alunos (nome, idade) VALUES (?, ?)", (nome, idade))
-        con.commit()
-        print("Aluno cadastrado com sucesso!")
-    except Exception as erro:
-        print("Erro ao inserir:", erro)
-    finally:
-        con.close()
-
-def listar_alunos():
-    con, cur = conectar()
-
-    try:
-        cur.execute("SELECT * FROM alunos")
-        dados = cur.fetchall()
-
-        if len(dados) == 0:
-            print("Nenhum aluno cadastrado.")
-        else:
-            print("\nLISTA DE ALUNOS:")
-            for linha in dados:
-                print(f"ID: {linha[0]} | Nome: {linha[1]} | Idade: {linha[2]}")
-            print()
-    except Exception as erro:
-        print("Erro ao listar:", erro)
-    finally:
-        con.close()
-
-def atualizar_aluno():
-    con, cur = conectar()
-
-    try:
-        id_aluno = int(input("Digite o ID do aluno que deseja atualizar: "))
-    except ValueError:
-        print("ID inválido!")
-        return
-
-    novo_nome = input("Digite o novo nome: ").strip()
-    if novo_nome == "":
-        print("Nome não pode ser vazio!")
-        return
-
-    try:
-        nova_idade = int(input("Digite a nova idade: "))
-    except ValueError:
-        print("Idade inválida!")
-        return
-
-    try:
+def inserir_aluno_db(nome, idade):
+    with conectar() as con:
+        cur = con.cursor()
         cur.execute(
-            "UPDATE alunos SET nome = ?, idade = ? WHERE id = ?",
-            (novo_nome, nova_idade, id_aluno)
+            "INSERT INTO alunos (nome, idade) VALUES (?, ?)",
+            (nome, idade)
         )
-        con.commit()
+        return cur.lastrowid
 
-        if cur.rowcount == 0:
-            print("ID não encontrado.")
-        else:
-            print("Aluno atualizado com sucesso!")
-    except Exception as erro:
-        print("Erro ao atualizar:", erro)
-    finally:
-        con.close()
 
-def deletar_aluno():
-    con, cur = conectar()
+def listar_alunos_db():
+    with conectar() as con:
+        cur = con.cursor()
+        cur.execute("SELECT * FROM alunos")
+        return cur.fetchall()
 
-    try:
-        id_aluno = int(input("Digite o ID do aluno para deletar: "))
-    except ValueError:
-        print("ID inválido!")
-        return
 
-    try:
-        cur.execute("DELETE FROM alunos WHERE id = ?", (id_aluno,))
-        con.commit()
+def atualizar_aluno_db(id_aluno, nome, idade):
+    with conectar() as con:
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE alunos SET nome=?, idade=? WHERE id=?",
+            (nome, idade, id_aluno)
+        )
+        return cur.rowcount
 
-        if cur.rowcount == 0:
-            print("ID não encontrado.")
-        else:
-            print("Aluno deletado com sucesso!")
-    except Exception as erro:
-        print("Erro ao deletar:", erro)
-    finally:
-        con.close()
 
+def deletar_aluno_db(id_aluno):
+    with conectar() as con:
+        cur = con.cursor()
+        cur.execute("DELETE FROM alunos WHERE id=?", (id_aluno,))
+        return cur.rowcount
+
+
+# -----------------------------
+#         MENU
+# -----------------------------
 def menu():
-    criar_tabela()  # garante que exista antes de tudo
+    criar_tabela()
 
     while True:
         print("""
@@ -131,16 +71,52 @@ def menu():
         opcao = input("Escolha uma opção: ")
 
         if opcao == "1":
-            inserir_aluno()
+            nome = input("Nome: ").strip()
+            idade = int(input("Idade: "))
+
+            if nome == "":
+                print("Nome não pode ser vazio!")
+                continue
+
+            inserir_aluno_db(nome, idade)
+            print("Aluno inserido!")
+
         elif opcao == "2":
-            listar_alunos()
+            alunos = listar_alunos_db()
+
+            if alunos:
+                for a in alunos:
+                    print(f"ID: {a[0]} | Nome: {a[1]} | Idade: {a[2]}")
+            else:
+                print("Nenhum aluno cadastrado.")
+
         elif opcao == "3":
-            atualizar_aluno()
+            try:
+                id_aluno = int(input("ID do aluno: "))
+            except ValueError:
+                print("ID inválido.")
+                continue
+
+            nome = input("Novo nome: ").strip()
+            idade = int(input("Nova idade: "))
+
+            linhas = atualizar_aluno_db(id_aluno, nome, idade)
+            print("Atualizado!" if linhas else "ID não encontrado.")
+
         elif opcao == "4":
-            deletar_aluno()
+            try:
+                id_aluno = int(input("ID para deletar: "))
+            except ValueError:
+                print("ID inválido.")
+                continue
+
+            linhas = deletar_aluno_db(id_aluno)
+            print("Deletado!" if linhas else "ID não encontrado.")
+
         elif opcao == "5":
-            print("Encerrando programa...")
+            print("Saindo...")
             break
+
         else:
-            print("Opção inválida! Tente novamente.")
+            print("Opção inválida.")
 menu()
